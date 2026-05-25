@@ -4,6 +4,57 @@ const axios = require('axios');
 const smsConfigured = () =>
   Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER);
 
+const verificationSmsConfigured = () =>
+  Boolean(
+    process.env.INFOBIP_API_KEY &&
+      process.env.INFOBIP_SENDER &&
+      process.env.INFOBIP_APPLICATION_ID &&
+      process.env.INFOBIP_MESSAGE_ID
+  );
+
+const sendVerificationSMS = async (phone) => {
+  try {
+    if (process.env.NODE_ENV === 'development') {
+      logger.info(`[DEV VERIFICATION SMS] To: ${phone}`);
+      return {
+        pinId: null,
+      };
+    }
+    if (!verificationSmsConfigured()) {
+      throw new Error('Infobip 2FA provider is not configured');
+    }
+
+    const apiUrl = (process.env.INFOBIP_BASE_URL || 'https://api.infobip.com').replace(/\/+$/, '');
+    const response = await axios.post(
+      `${apiUrl}/2fa/2/pin`,
+      {
+        applicationId: process.env.INFOBIP_APPLICATION_ID,
+        messageId: process.env.INFOBIP_MESSAGE_ID,
+        to: phone,
+      },
+      {
+        headers: {
+          Authorization: `App ${process.env.INFOBIP_API_KEY}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        timeout: 15000,
+      }
+    );
+
+    const pinId = response.data?.pinId;
+    if (!pinId) {
+      throw new Error('Missing pinId from Infobip response');
+    }
+
+    logger.info(`Verification OTP requested for ${phone}, pinId=${pinId}`);
+    return { pinId };
+  } catch (error) {
+    logger.error(`Verification SMS send failed to ${phone}: ${error.message}`);
+    throw error;
+  }
+};
+
 // SMS via Twilio
 const sendSMS = async (phone, message) => {
   try {
@@ -110,4 +161,12 @@ const sendActivationNotification = async ({ userId, referredBy }) => {
   }
 };
 
-module.exports = { sendSMS, sendEmail, sendActivationNotification, smsConfigured, sendgridClient };
+module.exports = {
+  sendSMS,
+  sendVerificationSMS,
+  sendEmail,
+  sendActivationNotification,
+  smsConfigured,
+  verificationSmsConfigured,
+  sendgridClient,
+};

@@ -41,20 +41,24 @@ const DAILY_CHALLENGE_TEMPLATES = [
 
 const ensureDailyChallenges = async () => {
   const now = new Date();
-  const existing = await Challenge.findOne({
+  const existing = await Challenge.find({
     isDaily: true,
     isActive: true,
     expiresAt: { $gt: now },
   });
 
-  if (existing) return;
+  if (existing.length >= DAILY_CHALLENGE_TEMPLATES.length) return;
 
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(0, 0, 0, 0);
 
+  const existingTitles = new Set(existing.map((item) => item.title));
+  const missingTemplates = DAILY_CHALLENGE_TEMPLATES.filter((template) => !existingTitles.has(template.title));
+  if (missingTemplates.length === 0) return;
+
   await Challenge.insertMany(
-    DAILY_CHALLENGE_TEMPLATES.map((template) => ({
+    missingTemplates.map((template) => ({
       ...template,
       isActive: true,
       isDaily: true,

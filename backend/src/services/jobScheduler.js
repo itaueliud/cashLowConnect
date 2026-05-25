@@ -135,6 +135,19 @@ const dailyCleanup = async () => {
     );
   }
 
+  const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+  const oldJobs = await Job.find({ publishedAt: { $lt: oneYearAgo } }).select('_id');
+  if (oldJobs.length > 0) {
+    const oldJobIds = oldJobs.map((job) => job._id);
+    const [deletedOldApplications, deletedOldJobs] = await Promise.all([
+      JobApplication.deleteMany({ jobId: { $in: oldJobIds } }),
+      Job.deleteMany({ _id: { $in: oldJobIds } }),
+    ]);
+    logger.info(
+      `Daily cleanup removed ${deletedOldJobs.deletedCount} jobs older than 1 year and ${deletedOldApplications.deletedCount} related applications`
+    );
+  }
+
   logger.info('Daily cleanup complete');
 };
 

@@ -49,6 +49,8 @@ const BASE_NAV = [
   { href: '/dashboard/profile', icon: User, label: 'Profile' },
 ];
 
+const REAL_USER_BLOCKED_ROUTES = ['/dashboard/surveys', '/dashboard/tasks', '/dashboard/ads-network', '/dashboard/offerwalls'];
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, logout, hasHydrated } = useAuthStore();
   const router = useRouter();
@@ -63,6 +65,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!hasHydrated || !user) return;
 
     if (user.role === 'user') {
+      if ((user.userAccessType || 'real') === 'real' && REAL_USER_BLOCKED_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`))) {
+        const moduleKey = pathname.split('/')[2] || '';
+        router.push(`/dashboard/coming-soon?module=${encodeURIComponent(moduleKey)}`);
+        return;
+      }
       if (pathname.startsWith('/dashboard/admin') || pathname.startsWith('/dashboard/admin-console') || pathname.startsWith('/dashboard/ledger') || pathname.startsWith('/dashboard/superadmin')) {
         router.push('/dashboard');
       }
@@ -104,6 +111,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!user) return null;
 
+  const userBaseNav = BASE_NAV;
+
   const nav = user.role === 'ledger'
     ? [
         { href: '/dashboard/ledger', icon: Gauge, label: 'Overview' },
@@ -136,7 +145,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           { href: '/dashboard/admin/config', icon: SlidersHorizontal, label: 'Config' },
           { href: '/dashboard/admin/provider-health', icon: Activity, label: 'Provider Health' },
         ]
-      : BASE_NAV;
+      : userBaseNav;
 
   const isNavActive = (href: string) =>
     href.includes('#')

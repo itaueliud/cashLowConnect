@@ -5,6 +5,7 @@ import DashboardAdsNetworkPage from '../../../src/app/dashboard/ads-network/page
 import DashboardCashTasksPage from '../../../src/app/dashboard/cash-tasks/page';
 import DashboardChatPage from '../../../src/app/dashboard/chat/page';
 import DashboardChallengesPage from '../../../src/app/dashboard/challenges/page';
+import DashboardComingSoonPage from '../../../src/app/dashboard/coming-soon/page';
 import DashboardFreelancePage from '../../../src/app/dashboard/freelance/page';
 import DashboardJobsPage from '../../../src/app/dashboard/jobs/page';
 import DashboardLedgerPage from '../../../src/app/dashboard/ledger/page';
@@ -26,6 +27,7 @@ const ROUTES: Record<string, React.ComponentType> = {
   'cash-tasks': DashboardCashTasksPage,
   chat: DashboardChatPage,
   challenges: DashboardChallengesPage,
+  'coming-soon': DashboardComingSoonPage,
   freelance: DashboardFreelancePage,
   jobs: DashboardJobsPage,
   ledger: DashboardLedgerPage,

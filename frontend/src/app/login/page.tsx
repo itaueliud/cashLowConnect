@@ -50,7 +50,7 @@ export default function LoginPage() {
     try {
       const browserLanguage = (typeof navigator !== 'undefined' ? navigator.language : 'en').split('-')[0].toLowerCase();
       const timezone = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : '';
-      await login(data.identifier, data.password, turnstileToken || undefined, browserLanguage, timezone);
+      await login(data.identifier, data.password, turnstileToken || undefined, browserLanguage, timezone, portal || undefined);
       const language = useAuthStore.getState().user?.userLanguage || browserLanguage || 'en';
       localStorage.setItem('cfh-user-language', language);
       document.documentElement.lang = language;

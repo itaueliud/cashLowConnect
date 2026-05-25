@@ -12,6 +12,7 @@ interface User {
   id: string;
   userId: string;
   role?: 'user' | 'admin' | 'superadmin' | 'ledger';
+  userAccessType?: 'real' | 'test';
   firstName?: string;
   lastName?: string;
   name: string;
@@ -52,7 +53,7 @@ interface AuthState {
   setUser: (user: User) => void;
   setToken: (token: string) => void;
   setHasHydrated: (hasHydrated: boolean) => void;
-  login: (identifier: string, password: string, turnstileToken?: string, browserLanguage?: string, timezone?: string) => Promise<void>;
+  login: (identifier: string, password: string, turnstileToken?: string, browserLanguage?: string, timezone?: string, portal?: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -72,7 +73,7 @@ export const useAuthStore = create<AuthState>()(
       },
       setHasHydrated: (hasHydrated) => set({ hasHydrated }),
 
-      login: async (identifier, password, turnstileToken, browserLanguage, timezone) => {
+      login: async (identifier, password, turnstileToken, browserLanguage, timezone, portal) => {
         set({ isLoading: true });
         try {
           const res = await api.post('/auth/login', {
@@ -81,6 +82,7 @@ export const useAuthStore = create<AuthState>()(
             turnstileToken,
             browser_language: browserLanguage,
             timezone,
+            portal,
           });
           const { token, user } = res.data;
           set({ token, user, isLoading: false });

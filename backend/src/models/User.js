@@ -116,6 +116,7 @@ const userSchema = new mongoose.Schema({
   lockUntil: { type: Date, default: null },
 
   role: { type: String, enum: ['user', 'admin', 'superadmin', 'ledger'], default: 'user' },
+  userAccessType: { type: String, enum: ['real', 'test'], default: 'real' },
 
   managedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   managedAt: { type: Date, default: null },

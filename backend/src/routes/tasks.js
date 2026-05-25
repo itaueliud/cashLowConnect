@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect, requireActivation } = require('../middleware/auth');
+const { protect, requireActivation, requireTestUserModuleAccess } = require('../middleware/auth');
 const { completionRateLimit, deviceFingerprint } = require('../middleware/antiFraud');
 const { Task, TaskCompletion } = require('../models/Task');
 const TaskUnlock = require('../models/TaskUnlock');
@@ -90,7 +90,7 @@ const getMicrotaskProviders = () => {
 };
 
 // @GET /api/tasks
-router.get('/', protect, requireActivation, async (req, res) => {
+router.get('/', protect, requireActivation, requireTestUserModuleAccess('Microtasks'), async (req, res) => {
   try {
     await ensureBaselineTasks();
     const tasks = await Task.find({ isActive: true, source: 'internal' }).sort({ rewardUSD: -1 }).limit(50);
@@ -115,7 +115,7 @@ router.get('/', protect, requireActivation, async (req, res) => {
 });
 
 // @GET /api/tasks/providers
-router.get('/providers', protect, requireActivation, async (req, res) => {
+router.get('/providers', protect, requireActivation, requireTestUserModuleAccess('Microtasks'), async (req, res) => {
   try {
     const payload = getMicrotaskProviders();
     res.json({
@@ -130,7 +130,7 @@ router.get('/providers', protect, requireActivation, async (req, res) => {
 });
 
 // @GET /api/tasks/providers/:providerKey/launch
-router.get('/providers/:providerKey/launch', protect, requireActivation, async (req, res) => {
+router.get('/providers/:providerKey/launch', protect, requireActivation, requireTestUserModuleAccess('Microtasks'), async (req, res) => {
   try {
     const { providerKey } = req.params;
     const { providers } = getMicrotaskProviders();
@@ -173,7 +173,7 @@ router.get('/providers/:providerKey/launch', protect, requireActivation, async (
 });
 
 // @POST /api/tasks/:id/unlock
-router.post('/:id/unlock', protect, requireActivation, deviceFingerprint, async (req, res) => {
+router.post('/:id/unlock', protect, requireActivation, requireTestUserModuleAccess('Microtasks'), deviceFingerprint, async (req, res) => {
   try {
     await ensureBaselineTasks();
 
@@ -218,7 +218,7 @@ router.post('/:id/unlock', protect, requireActivation, deviceFingerprint, async 
 });
 
 // @POST /api/tasks/:id/complete
-router.post('/:id/complete', protect, requireActivation, deviceFingerprint, completionRateLimit, async (req, res) => {
+router.post('/:id/complete', protect, requireActivation, requireTestUserModuleAccess('Microtasks'), deviceFingerprint, completionRateLimit, async (req, res) => {
   try {
     await ensureBaselineTasks();
 
@@ -296,7 +296,7 @@ router.post('/:id/complete', protect, requireActivation, deviceFingerprint, comp
 });
 
 // @GET /api/tasks/history
-router.get('/history', protect, requireActivation, async (req, res) => {
+router.get('/history', protect, requireActivation, requireTestUserModuleAccess('Microtasks'), async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
     const pageNumber = Number(page);

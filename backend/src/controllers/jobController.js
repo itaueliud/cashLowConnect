@@ -4,6 +4,28 @@ const Transaction = require('../models/Transaction');
 const { getRedis } = require('../config/redis');
 const logger = require('../utils/logger');
 const { JOB_APPLICATION_TOKEN_TIERS, TOKEN_PACKAGES, JOB_POSTING_TOKEN_COST, getApplicationTokenCost } = require('../config/monetization');
+const DEFAULT_JOB_CATEGORIES = [
+  'Software Development',
+  'Product Management',
+  'Data Science',
+  'DevOps & Cloud',
+  'Design',
+  'Marketing',
+  'Customer Support',
+  'Writing',
+  'Data Entry',
+  'Virtual Assistance',
+  'Finance',
+  'Sales',
+  'Human Resources',
+  'Legal',
+  'Operations',
+  'Cybersecurity',
+  'QA & Testing',
+  'Business Analysis',
+  'Project Management',
+  'Other',
+];
 
 // @GET /api/jobs
 exports.getJobs = async (req, res) => {
@@ -60,6 +82,7 @@ exports.createJobPosting = async (req, res) => {
       title,
       company,
       category,
+      categoryOther,
       jobType,
       location,
       salary,
@@ -68,27 +91,27 @@ exports.createJobPosting = async (req, res) => {
       tags = [],
       budgetAmount,
       budgetCurrency = 'KES',
-      durationMonths,
     } = req.body;
 
     if (!title || !company || !category || !description || !applicationUrl) {
       return res.status(400).json({ success: false, message: 'Missing required job posting fields' });
     }
 
-    const parsedDurationMonths = Number(durationMonths || 1);
-    if (!Number.isInteger(parsedDurationMonths) || parsedDurationMonths < 1 || parsedDurationMonths > 3) {
-      return res.status(400).json({
-        success: false,
-        message: 'Posting period must be between 1 and 3 months',
-      });
+    const normalizedCategory = String(category || '').trim();
+    let normalizedCategoryOther = null;
+    if (normalizedCategory === 'Other') {
+      normalizedCategoryOther = String(categoryOther || '').trim();
+      if (normalizedCategoryOther.length < 3 || normalizedCategoryOther.length > 60) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please specify Other category using 3 to 60 characters',
+        });
+      }
     }
 
     const normalizedBudget = Number(budgetAmount) || 0;
     const applicationTokenCost = getApplicationTokenCost(normalizedBudget);
     const publishedAt = new Date();
-    const expiresAt = new Date(publishedAt);
-    expiresAt.setMonth(expiresAt.getMonth() + parsedDurationMonths);
-
     user.consumeTokens(JOB_POSTING_TOKEN_COST);
     await user.save();
 
@@ -97,7 +120,8 @@ exports.createJobPosting = async (req, res) => {
       source: 'internal',
       title,
       company,
-      category,
+      category: normalizedCategory,
+      categoryOther: normalizedCategoryOther,
       jobType: jobType || 'contract',
       location: location || 'Remote',
       salary: salary || null,
@@ -109,9 +133,8 @@ exports.createJobPosting = async (req, res) => {
       budgetCurrency,
       postingTokenCost: JOB_POSTING_TOKEN_COST,
       applicationTokenCost,
-      durationMonths: parsedDurationMonths,
       publishedAt,
-      expiresAt,
+      expiresAt: null,
       isActive: true,
     });
 
@@ -153,19 +176,13 @@ exports.getCategories = async (req, res) => {
       $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
     });
     const normalized = (categories || []).filter(Boolean);
-    if (normalized.length > 0) {
-      return res.json({ success: true, categories: normalized });
-    }
-
-    return res.json({
-      success: true,
-      categories: ['Other', 'Software Development', 'Design', 'Marketing', 'Customer Support'],
-    });
+    const merged = [...new Set([...DEFAULT_JOB_CATEGORIES, ...normalized])];
+    return res.json({ success: true, categories: merged });
   } catch (error) {
     logger.error(`getCategories error: ${error.message}`);
     return res.json({
       success: true,
-      categories: ['Other', 'Software Development', 'Design', 'Marketing', 'Customer Support'],
+      categories: DEFAULT_JOB_CATEGORIES,
       fallback: true,
     });
   }
@@ -190,7 +207,7 @@ exports.getJob = async (req, res) => {
 exports.syncJobs = async () => {
   logger.info('Syncing remote jobs...');
   let synced = 0;
-  const remoteLimit = Math.min(Number(process.env.JOBS_SYNC_LIMIT || 100), 200);
+  const remoteLimit = Math.min(Math.max(Number(process.env.JOBS_SYNC_LIMIT || 5000), 100), 20000);
 
   try {
     // Remotive
@@ -199,28 +216,33 @@ exports.syncJobs = async () => {
     });
     const remotiveJobs = remotiveRes.data?.jobs || [];
 
-    for (const job of remotiveJobs.slice(0, remoteLimit)) {
-      await Job.findOneAndUpdate(
-        { externalId: `remotive-${job.id}` },
-        {
-          externalId: `remotive-${job.id}`,
-          source: 'remotive',
-          title: job.title,
-          company: job.company_name,
-          companyLogo: job.company_logo,
-          category: job.category || 'Other',
-          jobType: job.job_type || 'full-time',
-          location: 'Remote',
-          salary: job.salary || null,
-          description: job.description?.slice(0, 2000) || '',
-          tags: job.tags || [],
-          applicationUrl: job.url,
-          publishedAt: new Date(job.publication_date),
-          isActive: true,
+    const remotiveOps = remotiveJobs.slice(0, remoteLimit).map((job) => ({
+      updateOne: {
+        filter: { externalId: `remotive-${job.id}` },
+        update: {
+          $set: {
+            externalId: `remotive-${job.id}`,
+            source: 'remotive',
+            title: job.title,
+            company: job.company_name,
+            companyLogo: job.company_logo,
+            category: job.category || 'Other',
+            jobType: job.job_type || 'full-time',
+            location: 'Remote',
+            salary: job.salary || null,
+            description: job.description?.slice(0, 2000) || '',
+            tags: job.tags || [],
+            applicationUrl: job.url,
+            publishedAt: new Date(job.publication_date),
+            isActive: true,
+          },
         },
-        { upsert: true, new: true }
-      );
-      synced++;
+        upsert: true,
+      },
+    }));
+    if (remotiveOps.length > 0) {
+      await Job.bulkWrite(remotiveOps, { ordered: false });
+      synced += remotiveOps.length;
     }
 
     // Jobicy
@@ -308,9 +330,9 @@ exports.syncJobs = async () => {
       logger.info('Jooble sync skipped: JOOBLE_API_KEY not configured');
     }
 
-    // Deactivate old jobs (>30 days)
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    await Job.updateMany({ publishedAt: { $lt: thirtyDaysAgo } }, { isActive: false });
+    // Hard-delete jobs older than 1 year.
+    const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+    await Job.deleteMany({ publishedAt: { $lt: oneYearAgo } });
 
     logger.info(`Job sync complete. Synced ${synced} jobs.`);
   } catch (error) {

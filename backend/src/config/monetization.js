@@ -18,7 +18,7 @@ const TOKEN_PACKAGES = [
   { tokens: 500, amountKES: 3000 },
 ];
 
-const JOB_POSTING_TOKEN_COST = 50;
+const JOB_POSTING_TOKEN_COST = 10;
 
 const JOB_APPLICATION_TOKEN_TIERS = [
   { min: 0, max: 25, tokens: 1 },

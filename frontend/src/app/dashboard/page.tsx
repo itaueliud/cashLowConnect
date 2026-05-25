@@ -31,6 +31,8 @@ const QUICK_ACTIONS = [
 
 export default function DashboardPage() {
   const { user, refreshUser } = useAuthStore();
+  const isRealUser = user?.role === 'user' && (user?.userAccessType || 'real') === 'real';
+  const blockedForRealUser = new Set(['/dashboard/surveys', '/dashboard/tasks', '/dashboard/ads-network', '/dashboard/offerwalls']);
 
   const { data: walletData } = useQuery({
     queryKey: ['wallet'],
@@ -132,7 +134,7 @@ export default function DashboardPage() {
       <div>
         <h2 className="font-bold text-lg mb-3">Earning Modules</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {QUICK_ACTIONS.map((action, index) => (
+          {QUICK_ACTIONS.filter((action) => !(isRealUser && blockedForRealUser.has(action.href))).map((action, index) => (
             <Link key={action.href} href={action.href} className="card hover:border-slate-500 transition-all group flex items-center gap-3">
               <div className={`w-10 h-10 rounded-xl ${action.color} flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform`}>
                 <action.icon size={18} />

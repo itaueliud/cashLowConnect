@@ -5,7 +5,13 @@ const User = require('../models/User');
 const Wallet = require('../models/Wallet');
 const { getRedis } = require('../config/redis');
 const logger = require('../utils/logger');
-const { sendSMS, smsConfigured, sendgridClient } = require('../services/notificationService');
+const {
+  sendSMS,
+  sendVerificationSMS,
+  smsConfigured,
+  verificationSmsConfigured,
+  sendgridClient,
+} = require('../services/notificationService');
 const { COUNTRIES } = require('../config/countries');
 const { TOKEN_PACKAGES } = require('../config/monetization');
 const devAuthStore = require('../services/devAuthStore');
@@ -103,20 +109,27 @@ exports.sendOTP = async (req, res) => {
     const otp = generateOTP();
     await setCode('otp', phone, otp);
 
-    if (process.env.NODE_ENV === 'development' || !smsConfigured()) {
-      if (!smsConfigured()) {
-        logger.warn(`SMS provider not configured. Returning OTP directly for ${phone}.`);
+    if (process.env.NODE_ENV === 'development' || !verificationSmsConfigured()) {
+      if (!verificationSmsConfigured()) {
+        logger.warn(`Infobip 2FA provider not configured. Returning OTP directly for ${phone}.`);
       }
       logger.info(`[DEV MODE] OTP generated for ${phone}: ${otp}`);
       return res.json({
         success: true,
-        message: smsConfigured() ? 'OTP generated successfully' : 'SMS not configured. OTP generated directly.',
+        message: verificationSmsConfigured()
+          ? 'OTP generated successfully'
+          : 'Infobip not configured. OTP generated directly.',
         otp,
       });
     }
 
-    await sendSMS(phone, `Your CashFlawHubs verification code is: ${otp}. Valid for 5 minutes.`);
-    logger.info(`OTP sent to ${phone}`);
+    const { pinId } = await sendVerificationSMS(phone);
+    if (!pinId) {
+      throw new Error('Failed to receive pinId from Infobip');
+    }
+
+    await setCode('infobip_pin', phone, pinId);
+    logger.info(`OTP request registered for ${phone}`);
     res.json({ success: true, message: 'OTP sent successfully' });
   } catch (error) {
     logger.error(`sendOTP error: ${error.message}`);
@@ -214,11 +227,42 @@ exports.verifyPhoneOTP = async (req, res) => {
     if (!phone || !otp) {
       return res.status(400).json({ success: false, message: 'Phone and OTP required' });
     }
-    const storedCode = await getCode('otp', phone);
-    if (!storedCode || storedCode !== String(otp)) {
-      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+
+    const useInfobip = process.env.NODE_ENV !== 'development' && verificationSmsConfigured();
+    if (!useInfobip) {
+      const storedCode = await getCode('otp', phone);
+      if (!storedCode || storedCode !== String(otp)) {
+        return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+      }
+      await clearCode('otp', phone);
+      await setCode('phone_verified', phone, 'true');
+      return res.json({ success: true, message: 'Phone verified successfully' });
     }
-    await clearCode('otp', phone);
+
+    const pinId = await getCode('infobip_pin', phone);
+    if (!pinId) {
+      return res.status(400).json({ success: false, message: 'OTP session expired or invalid phone' });
+    }
+
+    const apiUrl = (process.env.INFOBIP_BASE_URL || 'https://api.infobip.com').replace(/\/+$/, '');
+    const response = await axios.post(
+      `${apiUrl}/2fa/2/pin/${encodeURIComponent(pinId)}/verify`,
+      { pin: otp },
+      {
+        headers: {
+          Authorization: `App ${process.env.INFOBIP_API_KEY}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        timeout: 15000,
+      }
+    );
+
+    if (!response.data?.verified) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP' });
+    }
+
+    await clearCode('infobip_pin', phone);
     await setCode('phone_verified', phone, 'true');
     return res.json({ success: true, message: 'Phone verified successfully' });
   } catch (error) {
@@ -409,6 +453,7 @@ exports.register = async (req, res) => {
         paymentRouting: COUNTRIES[user.country]?.paymentRouting || { deposits: [], withdrawals: [] },
         tokenPackages: TOKEN_PACKAGES,
         role: user.role,
+        userAccessType: user.userAccessType || 'real',
         level: user.level,
         managedBy: user.managedBy || null,
       },
@@ -544,6 +589,7 @@ exports.login = async (req, res) => {
         paymentRouting: COUNTRIES[user.country]?.paymentRouting || { deposits: [], withdrawals: [] },
         tokenPackages: TOKEN_PACKAGES,
         role: user.role,
+        userAccessType: user.userAccessType || 'real',
         level: user.level,
         xpPoints: user.xpPoints,
         streak: user.streak,

@@ -64,7 +64,7 @@ export default function JobDetailsPage() {
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="badge-blue">{data.category}</span>
+                  <span className="badge-blue">{data.category === 'Other' && data.categoryOther ? `Other (${data.categoryOther})` : data.category}</span>
                   <span className="badge-green capitalize">{data.source}</span>
                   {data.jobType && <span className="badge-yellow capitalize">{data.jobType}</span>}
                 </div>

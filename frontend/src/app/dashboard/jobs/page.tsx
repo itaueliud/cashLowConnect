@@ -18,19 +18,8 @@ const EMPTY_FORM = {
   applicationUrl: '',
   budgetAmount: '',
   budgetCurrency: 'KES',
-  durationMonths: '1',
+  categoryOther: '',
 };
-const JOB_CATEGORIES = [
-  'Software Development',
-  'Design',
-  'Marketing',
-  'Customer Support',
-  'Writing',
-  'Data Entry',
-  'Virtual Assistance',
-  'Finance',
-  'Other',
-];
 const JOB_TYPES = ['full-time', 'part-time', 'contract', 'internship'];
 const JOB_LOCATIONS = ['Remote', 'Hybrid', 'On-site'];
 const BUDGET_CURRENCIES = ['KES', 'USD', 'UGX', 'TZS', 'GHS', 'NGN', 'ETB'];
@@ -65,18 +54,26 @@ export default function JobsPage() {
   const jobs = data?.jobs || [];
   const pagination = data?.pagination || {};
   const tokenPolicy = data?.tokenPolicy;
+  const availableCategories: string[] = (catData && catData.length > 0) ? catData : ['Other'];
 
   const updateField = (key: string, value: string) => {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
   const onPostJob = async () => {
+    if (form.category === 'Other') {
+      const custom = String(form.categoryOther || '').trim();
+      if (custom.length < 3 || custom.length > 60) {
+        toast.error('Please specify Other category using 3 to 60 characters');
+        return;
+      }
+    }
+
     setPosting(true);
     try {
       const payload = {
         ...form,
         budgetAmount: form.budgetAmount ? Number(form.budgetAmount) : undefined,
-        durationMonths: Number(form.durationMonths),
         tags: [],
       };
       const response = await api.post('/jobs', payload);
@@ -183,7 +180,7 @@ export default function JobsPage() {
             <div>
               <label className="text-sm text-slate-300 mb-1 block">Category</label>
               <select className="input" value={form.category} onChange={(e) => updateField('category', e.target.value)}>
-                {JOB_CATEGORIES.map((option) => <option key={option} value={option}>{option}</option>)}
+                {availableCategories.map((option: string) => <option key={option} value={option}>{option}</option>)}
               </select>
             </div>
             <div>
@@ -217,19 +214,19 @@ export default function JobsPage() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
+          {form.category === 'Other' && (
             <div>
-              <label className="text-sm text-slate-300 mb-1 block">Posting Period</label>
-              <select className="input" value={form.durationMonths} onChange={(e) => updateField('durationMonths', e.target.value)}>
-                <option value="1">1 month</option>
-                <option value="2">2 months</option>
-                <option value="3">3 months (max)</option>
-              </select>
+              <label className="text-sm text-slate-300 mb-1 block">Specify Category (3-60 characters)</label>
+              <input
+                className="input"
+                maxLength={60}
+                value={form.categoryOther}
+                onChange={(e) => updateField('categoryOther', e.target.value)}
+                placeholder="Example: Healthcare Administration"
+              />
+              <div className="mt-1 text-xs text-slate-500">{form.categoryOther.length}/60</div>
             </div>
-            <div className="rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm text-slate-400">
-              Internal jobs are auto-deleted once the selected posting period ends.
-            </div>
-          </div>
+          )}
 
           <div>
             <label className="text-sm text-slate-300 mb-1 block">Application URL</label>
@@ -243,7 +240,7 @@ export default function JobsPage() {
 
           <button onClick={onPostJob} disabled={posting} className="btn-primary flex items-center gap-2">
             {posting && <Loader2 size={16} className="animate-spin" />}
-            Post Job for {tokenPolicy?.postingCost || 50} Tokens
+            Post Job for {tokenPolicy?.postingCost || 10} Tokens
           </button>
         </div>
       ) : (
@@ -256,7 +253,7 @@ export default function JobsPage() {
               </div>
               <select value={category} onChange={(e) => { setCategory(e.target.value); setPage(1); }} className="input border-slate-700 bg-slate-950 lg:w-56">
                 <option value="">All Categories</option>
-                {(catData || []).map((c: string) => <option key={c} value={c}>{c}</option>)}
+                {availableCategories.map((c: string) => <option key={c} value={c}>{c}</option>)}
               </select>
               <button onClick={() => setTab('post')} className="btn-primary inline-flex items-center gap-2 lg:shrink-0">
                 <Plus size={16} /> Post Job
@@ -276,7 +273,7 @@ export default function JobsPage() {
                     <div className="min-w-0 flex-1 space-y-4">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="badge-green">Remote</span>
-                        <span className="badge-blue">{job.category}</span>
+                        <span className="badge-blue">{job.category === 'Other' && job.categoryOther ? `Other (${job.categoryOther})` : job.category}</span>
                         {job.source === 'internal' && <span className="badge-yellow">{job.applicationTokenCost}T apply</span>}
                         {job.salary && <span className="badge" style={{ background: 'rgba(16,185,129,0.14)', color: '#6ee7b7' }}>{job.salary}</span>}
                       </div>

@@ -18,6 +18,7 @@ type UserItem = {
   isBanned?: boolean;
   userId?: string;
   createdAt?: string;
+  userAccessType?: 'real' | 'test';
 };
 
 export default function AdminUsersPage() {
@@ -97,6 +98,19 @@ export default function AdminUsersPage() {
     }
   };
 
+  const setUserAccessType = async (userId: string, userAccessType: 'real' | 'test') => {
+    try {
+      await api.put(`/admin/users/${userId}/access-type`, { userAccessType });
+      toast.success(`User marked as ${userAccessType}`);
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      if (selectedUserId === userId) {
+        queryClient.invalidateQueries({ queryKey: ['admin-user-ledger', selectedUserId] });
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to update user access type');
+    }
+  };
+
   if (user?.role !== 'admin') {
     return <div className="card text-sm text-slate-400">Only admins can manage users.</div>;
   }
@@ -151,6 +165,7 @@ export default function AdminUsersPage() {
                   <div className="text-lg font-bold text-white">{item.name}</div>
                   <div className="text-xs text-slate-500">{item.email || '-'} | {item.phone || '-'}</div>
                   <div className="mt-2 text-xs text-slate-500">Country {item.country || '-'} | Role {item.role || '-'} | Activated {item.activationStatus ? 'yes' : 'no'}</div>
+                  <div className="mt-1 text-xs text-slate-400">Access type: <span className="font-semibold text-slate-200">{item.userAccessType || 'real'}</span></div>
                 </div>
                 <span className={item.isBanned ? 'badge-red' : 'badge-blue'}>{item.isBanned ? 'banned' : 'active'}</span>
               </div>
@@ -189,6 +204,18 @@ export default function AdminUsersPage() {
                 >
                   <KeyRound size={14} /> Set password
                 </button>
+                <button
+                  onClick={() => setUserAccessType(item._id, 'real')}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-500/40 bg-slate-800/70 px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:border-slate-300/60"
+                >
+                  Mark Real
+                </button>
+                <button
+                  onClick={() => setUserAccessType(item._id, 'test')}
+                  className="inline-flex items-center gap-2 rounded-xl border border-indigo-400/30 bg-indigo-500/10 px-4 py-2.5 text-sm font-semibold text-indigo-200 transition hover:border-indigo-300/50"
+                >
+                  Mark Test
+                </button>
               </div>
             </div>
           ))}
@@ -215,6 +242,7 @@ export default function AdminUsersPage() {
                   <div className="card"><div className="text-xs text-slate-400">Email</div><div className="mt-1 text-sm text-white">{selectedUser?.email || '-'}</div></div>
                   <div className="card"><div className="text-xs text-slate-400">Phone</div><div className="mt-1 text-sm text-white">{selectedUser?.phone || '-'}</div></div>
                 </div>
+                <div className="card"><div className="text-xs text-slate-400">Access type</div><div className="mt-1 text-sm text-white">{selectedUser?.userAccessType || 'real'}</div></div>
 
                 <div className="grid gap-3 md:grid-cols-4">
                   <div className="card"><div className="text-xs text-slate-400">Wallet USD</div><div className="mt-1 text-xl font-black text-blue-300">${Number(selectedWallet?.balanceUSD || 0).toFixed(2)}</div></div>

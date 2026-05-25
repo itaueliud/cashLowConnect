@@ -29,7 +29,17 @@ const getTurnstileToken = (req) =>
   req.body?.['cf-turnstile-response'] ||
   req.headers['cf-turnstile-response'];
 
+const isStaffPortalLogin = (req) => {
+  if (req.path !== '/login') return false;
+  const portal = String(req.body?.portal || '').trim().toLowerCase();
+  return ['admin', 'superadmin', 'ledger'].includes(portal);
+};
+
 const verifyTurnstile = async (req, res, next) => {
+  if (isStaffPortalLogin(req)) {
+    return next();
+  }
+
   const allowLocalBypass = isBypassEnabled() && isLocalRequest(req);
 
   if (!hasTurnstileSecret()) {

@@ -360,6 +360,34 @@ router.put('/users/:id/reset-password', protect, staffOnly, async (req, res) => 
   res.json({ success: true, message: 'Password updated successfully' });
 });
 
+router.put('/users/:id/access-type', protect, staffOnly, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Admin access required' });
+  }
+
+  const accessType = String(req.body?.userAccessType || '').trim().toLowerCase();
+  if (!['real', 'test'].includes(accessType)) {
+    return res.status(400).json({ success: false, message: 'userAccessType must be real or test' });
+  }
+
+  const target = await User.findById(req.params.id);
+  if (!target) {
+    return res.status(404).json({ success: false, message: 'User not found' });
+  }
+  if (!canManageTarget(req.user, target)) {
+    return res.status(403).json({ success: false, message: 'Not allowed to manage this account' });
+  }
+
+  target.userAccessType = accessType;
+  if (req.user.role === 'admin' && target.role === 'user') {
+    target.managedBy = req.user.id;
+    target.managedAt = new Date();
+  }
+  await target.save();
+
+  res.json({ success: true, user: target, message: `User marked as ${accessType} user` });
+});
+
 router.put('/admins/:id/reset-password', protect, ledgerOrSuperadminOnly, async (req, res) => {
   const { newPassword } = req.body;
   if (!newPassword || String(newPassword).length < 8) {
